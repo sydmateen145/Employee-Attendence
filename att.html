@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Attendance - January 2025</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0; padding: 0;
+            background-color: #f4f4f4;
+        }
+        h1 { text-align: center; margin-top: 20px; }
+        table {
+            width: 90%; margin: 20px auto; border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #333; text-align: center; padding: 10px;
+        }
+        th { background-color: #4CAF50; color: white; }
+        form { text-align: center; margin: 20px; }
+        input, button { padding: 10px; margin: 5px; }
+        button {
+            background-color: #4CAF50; color: white; border: none; cursor: pointer;
+        }
+        button:hover { background-color: #45a049; }
+        .edit-btn {
+            background-color: #ff9800; padding: 5px 10px; border: none; cursor: pointer;
+            color: white; border-radius: 4px;
+        }
+        .edit-btn:hover { background-color: #e68a00; }
+    </style>
+</head>
+<body>
+    <h1>Employee Attendance - January 2025</h1>
+    <form id="attendanceForm">
+        <label for="employeeName">Enter Your Name: </label>
+        <input type="text" id="employeeName" placeholder="Employee Name" required>
+        <div>
+            <button type="button" onclick="punchIn()">Punch In</button>
+            <button type="button" onclick="breakOut()">Break Out</button>
+            <button type="button" onclick="breakIn()">Break In</button>
+            <button type="button" onclick="punchOut()">Punch Out</button>
+        </div>
+    </form>
+
+    <table id="attendanceTable">
+        <thead>
+            <tr>
+                <th>S.NO.</th>
+                <th>NAME</th>
+                <th>DATE</th>
+                <th>IN TIME</th>
+                <th>BREAK OUT</th>
+                <th>BREAK IN</th>
+                <th>OUT TIME</th>
+                <th>TOTAL HOURS</th>
+                <th>ACTION</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBcUFkhFUSsUYEkspMjP51lx_K6yq3uv8Y",
+            authDomain: "z-e-h-460e9.firebaseapp.com",
+            databaseURL: "https://z-e-h-460e9-default-rtdb.firebaseio.com",
+            projectId: "z-e-h-460e9",
+            storageBucket: "z-e-h-460e9.appspot.com",
+            messagingSenderId: "223712244816",
+            appId: "1:223712244816:web:f008688459141f31904d55",
+            measurementId: "G-QHX8DNNN35"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let attendanceData = [];
+        let currentDate = new Date().toISOString().split('T')[0];
+
+        // Handle Attendance Actions
+        function punchIn() { handleAttendance('inTime', 'Welcome'); }
+        function breakOut() { handleAttendance('breakOut', 'Break Out at'); }
+        function breakIn() { handleAttendance('breakIn', 'Break In at'); }
+        function punchOut() {
+            handleAttendance('outTime', 'Goodbye', true);
+            saveToFirebase();
+        }
+
+        function handleAttendance(timeField, message, calculateHours = false) {
+            const name = document.getElementById('employeeName').value.trim();
+            if (!name) return alert('Please enter your name.');
+
+            const now = new Date();
+            const timeString = now.toTimeString().split(' ')[0];
+            let record = attendanceData.find(record => record.name === name && record.date === currentDate);
+
+            if (!record) {
+                record = {
+                    name: name, date: currentDate, inTime: '', breakOut: '', breakIn: '', outTime: '', totalHours: ''
+                };
+                attendanceData.push(record);
+            }
+
+            if (record[timeField]) {
+                return alert(`${name}, you have already logged ${timeField.replace(/([A-Z])/g, ' $1').toLowerCase()} today.`);
+            }
+
+            record[timeField] = timeString;
+
+            if (calculateHours) {
+                const inTime = new Date(`${currentDate}T${record.inTime}`);
+                const breakOut = record.breakOut ? new Date(`${currentDate}T${record.breakOut}`) : inTime;
+                const breakIn = record.breakIn ? new Date(`${currentDate}T${record.breakIn}`) : breakOut;
+                const outTime = new Date(`${currentDate}T${record.outTime}`);
+
+                const workBeforeBreak = (breakOut - inTime) / (1000 * 60 * 60);
+                const workAfterBreak = (outTime - breakIn) / (1000 * 60 * 60);
+                record.totalHours = (workBeforeBreak + workAfterBreak).toFixed(2);
+            }
+
+            alert(`${message} ${timeString}`);
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.querySelector('#attendanceTable tbody');
+            tbody.innerHTML = '';
+            attendanceData.forEach((record, index) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${record.name}</td>
+                        <td>${record.date}</td>
+                        <td>${record.inTime || '-'}</td>
+                        <td>${record.breakOut || '-'}</td>
+                        <td>${record.breakIn || '-'}</td>
+                        <td>${record.outTime || '-'}</td>
+                        <td>${record.totalHours || '-'}</td>
+                        <td>
+                            <button class="edit-btn" onclick="editName(${index})">Edit</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function editName(index) {
+            const newName = prompt("Enter the correct name:", attendanceData[index].name);
+            if (newName && newName.trim()) {
+                attendanceData[index].name = newName.trim();
+                alert("Name updated successfully!");
+                renderTable();
+            } else {
+                alert("Invalid name. No changes were made.");
+            }
+        }
+
+        function saveToFirebase() {
+            database.ref('attendance/').set(attendanceData)
+                .then(() => alert("Attendance data saved to Firebase successfully!"))
+                .catch(error => console.error("Error saving to Firebase:", error));
+        }
+
+        function loadFromFirebase() {
+            database.ref('attendance/').once('value')
+                .then(snapshot => {
+                    attendanceData = snapshot.val() || [];
+                    renderTable();
+                });
+        }
+
+        // Load data on page load
+        window.onload = loadFromFirebase;
+    </script>
+</body>
+</html>
